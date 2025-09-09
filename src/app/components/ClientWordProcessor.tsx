@@ -8,5 +8,5 @@ const WordProcessor = dynamic(() => import('./WordProcessor'), {
 });
 
 export default function ClientWordProcessor() {
-  return <WordProcessor />;
+  return <WordProcessor toolbarItems={[]} />;
 }

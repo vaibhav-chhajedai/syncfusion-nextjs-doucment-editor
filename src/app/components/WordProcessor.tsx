@@ -4,9 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   DocumentEditorContainerComponent,
   Toolbar,
-  type ToolbarItem,
   type CustomToolbarItemModel,
-  type ToolbarClickEventArgs,
 } from '@syncfusion/ej2-react-documenteditor';
 
 DocumentEditorContainerComponent.Inject(Toolbar);
@@ -18,9 +16,32 @@ export interface WordProcessorProps {
   serviceUrl?: string;
 
   // Live-configurable toolbar (may include built-in names OR custom objects)
-  toolbarItems: (ToolbarItem | CustomToolbarItemModel)[];
+  toolbarItems: (string | CustomToolbarItemModel)[];
   // Names of built-ins you want disabled (but still visible)
-  disabledBuiltins?: ToolbarItem[];
+  disabledBuiltins?: string[];
+}
+
+// Use a simplified interface that doesn't conflict with Syncfusion types
+interface EditorInstance {
+  undo?(): void;
+  redo?(): void;
+  print?(): void;
+  save?(filename: string, format?: unknown): void;
+  zoomFactor?: number;
+  editor?: {
+    insertText?(text: string): void;
+  };
+  isReadOnly?: boolean;
+  open?(sfdt: string): void;
+  resize?(): void;
+  destroy?(): void;
+}
+
+interface ContainerWithToolbar {
+  toolbar?: {
+    items?: unknown[];
+    enableItems(index: number, enabled: boolean): void;
+  };
 }
 
 /** Built-ins we implement directly here (extend as needed) */
@@ -28,27 +49,27 @@ const SUPPORTED_BUILTINS: Record<
   string,
   { icon?: string; tooltip?: string; onClick: (ctx: Ctx) => void }
 > = {
-  Undo:    { icon: 'e-icons e-undo',    tooltip: 'Undo',    onClick: ({ editor }) => editor?.undo() },
-  Redo:    { icon: 'e-icons e-redo',    tooltip: 'Redo',    onClick: ({ editor }) => editor?.redo() },
-  Find:    { icon: 'e-icons e-search',  tooltip: 'Find',    onClick: ({ editor }) => { try { (editor as any)?.showDialog?.('Find'); } catch {} } },
-  Print:   { icon: 'e-icons e-print',   tooltip: 'Print',   onClick: ({ editor }) => editor?.print() },
-  Export:  { icon: 'e-icons e-export',  tooltip: 'Save as DOCX', onClick: ({ editor }) => editor?.save('document', 'Docx') },
-  ExportPdf: { icon: 'e-icons e-pdf',   tooltip: 'Save as PDF',  onClick: ({ editor }) => editor?.save('document', 'Pdf') },
-  ZoomIn:  { icon: 'e-icons e-zoom-in', tooltip: 'Zoom In', onClick: ({ editor }) => { if (editor) editor.zoomFactor = Math.min(4, (editor.zoomFactor ?? 1) + 0.1); } },
-  ZoomOut: { icon: 'e-icons e-zoom-out',tooltip: 'Zoom Out',onClick: ({ editor }) => { if (editor) editor.zoomFactor = Math.max(0.1, (editor.zoomFactor ?? 1) - 0.1); } },
+  Undo:    { icon: 'e-icons e-undo',    tooltip: 'Undo',    onClick: ({ editor }) => editor?.undo?.() },
+  Redo:    { icon: 'e-icons e-redo',    tooltip: 'Redo',    onClick: ({ editor }) => editor?.redo?.() },
+  Find:    { icon: 'e-icons e-search',  tooltip: 'Find',    onClick: ({ editor }) => { try { (editor as unknown as { showDialog?: (dialog: string) => void })?.showDialog?.('Find'); } catch {} } },
+  Print:   { icon: 'e-icons e-print',   tooltip: 'Print',   onClick: ({ editor }) => editor?.print?.() },
+  Export:  { icon: 'e-icons e-export',  tooltip: 'Save as DOCX', onClick: ({ editor }) => editor?.save?.('document', 'Docx') },
+  ExportPdf: { icon: 'e-icons e-pdf',   tooltip: 'Save as PDF',  onClick: ({ editor }) => editor?.save?.('document', 'Pdf') },
+  ZoomIn:  { icon: 'e-icons e-zoom-in', tooltip: 'Zoom In', onClick: ({ editor }) => { if (editor && editor.zoomFactor !== undefined) editor.zoomFactor = Math.min(4, (editor.zoomFactor ?? 1) + 0.1); } },
+  ZoomOut: { icon: 'e-icons e-zoom-out',tooltip: 'Zoom Out',onClick: ({ editor }) => { if (editor && editor.zoomFactor !== undefined) editor.zoomFactor = Math.max(0.1, (editor.zoomFactor ?? 1) - 0.1); } },
   // Add more mappings if you want to cover other built-ins like Image/Table/etc.
 };
 
 /** Convert any mix of strings and custom models into EJ2 Toolbar item objects */
 function normalizeToolbarItems(
-  input: (ToolbarItem | CustomToolbarItemModel)[]
+  input: (string | CustomToolbarItemModel)[]
 ): CustomToolbarItemModel[] {
   const out: CustomToolbarItemModel[] = [];
 
   for (const it of input) {
     // Allow separator via object { type: 'Separator' } or a special string 'Separator'
-    if (it === 'Separator' || (typeof it === 'object' && (it as any).type === 'Separator')) {
-      out.push({ type: 'Separator' } as any);
+    if (it === 'Separator' || (typeof it === 'object' && (it as { type?: string }).type === 'Separator')) {
+      out.push({ type: 'Separator' } as CustomToolbarItemModel);
       continue;
     }
 
@@ -80,7 +101,7 @@ function normalizeToolbarItems(
   return out;
 }
 
-type Ctx = { editor: any };
+type Ctx = { editor: EditorInstance | null | undefined };
 
 export default function WordProcessor({
   height = '640px',
@@ -101,11 +122,12 @@ export default function WordProcessor({
 
   // Clean destroy on unmount / fast refresh
   useEffect(() => {
+    const currentContainer = containerRef.current;
     return () => {
       try {
-        containerRef.current?.documentEditor?.destroy();
-        // @ts-expect-error destroy exists at runtime on container
-        containerRef.current?.destroy?.();
+        currentContainer?.documentEditor?.destroy();
+        const container = currentContainer as unknown as { destroy?: () => void };
+        container?.destroy?.();
       } catch {}
     };
   }, []);
@@ -139,8 +161,8 @@ export default function WordProcessor({
   }, [readOnly, isReady]);
 
   // Central click handler (handles our mapped built-ins and your custom items)
-  const onToolbarClick = (args: ToolbarClickEventArgs) => {
-    const id = (args.item as any)?.id as string | undefined;
+  const onToolbarClick = (args: { item?: { id?: string }; event?: Event }) => {
+    const id = (args.item as { id?: string })?.id;
     const editor = containerRef.current?.documentEditor;
     const ctx: Ctx = { editor };
 
@@ -156,12 +178,12 @@ export default function WordProcessor({
 
     // Your custom items:
     if (id === 'custom_say_hello') {
-      editor?.editor.insertText(' 👋 Hello!');
+      editor?.editor?.insertText?.(' 👋 Hello!');
       args.event?.preventDefault?.();
       return;
     }
     if (id === 'custom_save_docx') {
-      editor?.save('document', 'Docx');
+      editor?.save?.('document', 'Docx');
       return;
     }
   };
@@ -169,15 +191,15 @@ export default function WordProcessor({
   // Enable/disable specific built-ins (by name) after render
   useEffect(() => {
     if (!isReady) return;
-    const toolbarApi = (containerRef.current as any)?.toolbar;
+    const toolbarApi = (containerRef.current as unknown as ContainerWithToolbar)?.toolbar;
     if (!toolbarApi) return;
 
-    const currentItems = (toolbarApi.items ?? []) as any[];
+    const currentItems = (toolbarApi.items ?? []) as { id?: string }[];
 
     // Build index map by our normalized item ids
     const indexById = new Map<string, number[]>();
     currentItems.forEach((it, idx) => {
-      const id = it?.id as string | undefined;
+      const id = it?.id;
       if (!id) return;
       if (!indexById.has(id)) indexById.set(id, []);
       indexById.get(id)!.push(idx);
@@ -204,7 +226,7 @@ export default function WordProcessor({
         showPropertiesPane={showPropertiesPane}
         enableToolbar={true}
         // ✅ Always pass object models, never raw strings
-        toolbarItems={normalizedItems as any}
+        toolbarItems={normalizedItems}
         toolbarClick={onToolbarClick}
         created={onCreated}
         serviceUrl={serviceUrl}

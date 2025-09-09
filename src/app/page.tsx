@@ -2,10 +2,10 @@
 
 import { useMemo, useState, useEffect } from 'react';
 import WordProcessor from './components/WordProcessor';
-import type { CustomToolbarItemModel, ToolbarItem } from '@syncfusion/ej2-react-documenteditor';
+import type { CustomToolbarItemModel } from '@syncfusion/ej2-react-documenteditor';
 
 /** Full set of common built-ins you can offer (extend as needed) */
-const ALL_BUILTINS: ToolbarItem[] = [
+const ALL_BUILTINS = [
   'New', 'Open',
   'Undo', 'Redo',
   'Find',
@@ -14,7 +14,7 @@ const ALL_BUILTINS: ToolbarItem[] = [
   'LocalClipboard', 'RestrictEditing', 'TrackChanges', 'Comments',
   'FormFields', 'UpdateFields', 'ContentControl',
   'Print', 'Export', 'Zoom',
-];
+] as const;
 
 const BASE = 'https://cdn.syncfusion.com/ej2/30.2.4';
 type ThemeDef = { id: string; label: string; href: string; group: string };
@@ -35,16 +35,16 @@ const DEFAULT_THEME_ID = 'fluent2-lite';
 
 
 /** A nice default selection */
-const DEFAULT_SELECTION = new Set<ToolbarItem>([
+const DEFAULT_SELECTION = new Set([
   'Undo', 'Redo',
   'Find',
   'Image', 'Table', 'Hyperlink',
   'Comments', 'TrackChanges',
   'Export', 'Zoom',
-]);
+] as const);
 
 /** Group built-ins for a cleaner UI */
-const GROUPS: { name: string; items: ToolbarItem[] }[] = [
+const GROUPS = [
   { name: 'File', items: ['New', 'Open', 'Print', 'Export'] },
   { name: 'Edit', items: ['Undo', 'Redo', 'Find', 'LocalClipboard'] },
   { name: 'Insert', items: ['Image', 'Table', 'Hyperlink', 'Bookmark', 'TableOfContents', 'Break', 'PageNumber', 'InsertFootnote', 'InsertEndnote'] },
@@ -52,7 +52,7 @@ const GROUPS: { name: string; items: ToolbarItem[] }[] = [
   { name: 'Review', items: ['Comments', 'TrackChanges', 'RestrictEditing'] },
   { name: 'Fields/Controls', items: ['FormFields', 'UpdateFields', 'ContentControl'] },
   { name: 'View', items: ['Zoom'] },
-];
+] as const;
 
 type CustomItemInput = {
   id: string;
@@ -61,12 +61,14 @@ type CustomItemInput = {
   prefixIcon?: string; // e.g. "e-icons e-save"
 };
 
+type BuiltinItem = typeof ALL_BUILTINS[number];
+
 export default function Page() {
   // Visible (included) built-ins
-  const [selected, setSelected] = useState<Set<ToolbarItem>>(new Set(DEFAULT_SELECTION));
+  const [selected, setSelected] = useState<Set<BuiltinItem>>(new Set(DEFAULT_SELECTION));
 
   // Disabled built-ins (still visible but inactive)
-  const [disabled, setDisabled] = useState<Set<ToolbarItem>>(new Set());
+  const [disabled, setDisabled] = useState<Set<BuiltinItem>>(new Set());
 
   // Custom buttons
   const [customItems, setCustomItems] = useState<CustomToolbarItemModel[]>([
@@ -82,28 +84,36 @@ export default function Page() {
     return ALL_BUILTINS.filter((b) => selected.has(b));
   }, [selected]);
 
-  const toolbarItems = useMemo<(ToolbarItem | CustomToolbarItemModel)[]>(
-    () => [...orderedBuiltins, ...customItems],
+  const toolbarItems = useMemo(
+    () => [...orderedBuiltins, ...customItems] as (string | CustomToolbarItemModel)[],
     [orderedBuiltins, customItems]
   );
 
-  const disabledBuiltins = useMemo<ToolbarItem[]>(
+  const disabledBuiltins = useMemo<BuiltinItem[]>(
     () => Array.from(disabled),
     [disabled]
   );
 
-  const toggleSelected = (name: ToolbarItem) => {
+  const toggleSelected = (name: BuiltinItem) => {
     setSelected(prev => {
       const next = new Set(prev);
-      next.has(name) ? next.delete(name) : next.add(name);
+      if (next.has(name)) {
+        next.delete(name);
+      } else {
+        next.add(name);
+      }
       return next;
     });
   };
 
-  const toggleDisabled = (name: ToolbarItem) => {
+  const toggleDisabled = (name: BuiltinItem) => {
     setDisabled(prev => {
       const next = new Set(prev);
-      next.has(name) ? next.delete(name) : next.add(name);
+      if (next.has(name)) {
+        next.delete(name);
+      } else {
+        next.add(name);
+      }
       return next;
     });
   };
