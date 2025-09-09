@@ -1,0 +1,7 @@
+/* app/globals.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* optional demo spacing */
+.container { @apply max-w-4xl mx-auto p-6; }
