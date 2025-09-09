@@ -1,30 +1,22 @@
 // src/app/layout.tsx
 export const metadata = {
-  title: "Word Processor | Syncfusion + Next.js",
-  description: "React Document Editor in Next.js",
+  title: "Syncfusion Word Processor – Toolbar + Theme",
+  description: "Live toolbar customization with theme switcher",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <head>
-        {/* Syncfusion Fluent 2 theme (covers all EJ2 components) */}
+        {/* Default theme; the page will swap this href */}
         <link
+          id="sf-theme"
           rel="stylesheet"
-          href="https://cdn.syncfusion.com/ej2/30.2.4/fluent2.css"
+          href="https://cdn.syncfusion.com/ej2/30.2.4/fluent2-lite.css"
         />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
       </head>
-      <body className="min-h-screen bg-background antialiased">
-        {/* Client-only license setup (safe no-op if key missing) */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              // enable Next.js to load fonts smoothly, etc.
-            `,
-          }}
-        />
-        <div id="app-root">{children}</div>
-      </body>
+      <body style={{ minHeight: "100vh", background: "#f6f7fb" }}>{children}</body>
     </html>
   );
 }
